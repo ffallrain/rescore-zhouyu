@@ -1,0 +1,95 @@
+#!/usr/bin/perl -w
+# usage : nwdock_lig_split *ligand.pdb
+# Niu, march, 2004, modified from CK to write out AMSOL charge from XPDB file
+
+$infile = $ARGV[ 0 ];  # Northwestern-Dock Ligand Pose File
+
+$rank = 1;
+$count = 0;
+$bond = 0;
+$listfile = 'list';
+
+open( INFILE, "$infile" ) || die "could not open $infile";
+open( LISTFILE, ">$listfile" );
+
+$tag = 'HETATM';
+$occ = '1.0';
+$temp = '0.0';
+while( <INFILE> ) {
+
+  if( (/^ATOM/) or (/^HETATM/)) {
+    $latnum[ $count ] = substr( $_, 9, 2 );
+    $latname[ $count ] = substr( $_, 12, 4 );
+    $lxcrd[ $count ] = substr( $_, 30, 8 );
+    $lycrd[ $count ] = substr( $_, 38, 8 );
+    $lzcrd[ $count ] = substr( $_, 46, 8 );
+    $atomcrg[ $count ] = substr( $_, 54, 8 );     # be careful
+    $count++;
+  }
+  if ( /^CONECT/ ) {
+     $conect[ $bond ] = $_ ;
+     $bond++; 
+  }
+  if( (/^END/) or (/^TER/) or (/^ENDMDL/) ) {
+    if( $rank < 100 ) {
+      if( $rank < 10 ) {
+        $coorfile = '00' . $rank . '.het';
+        $resnam = '00' . $rank;
+        $crgfile = '00' . $rank . '.amsolcrg';
+#        $atmfile = '00' . $rank . '.atomname';
+      } else {
+        $coorfile = '0' . $rank . '.het';
+        $resnam = '0' . $rank;
+        $crgfile = '0' . $rank . '.amsolcrg';
+#        $atmfile = '0' . $rank . '.atomname';   
+      }
+    } else { 
+      $coorfile = $rank . '.het';
+      $resnam = $rank;
+      $crgfile = $rank . '.amsolcrg';
+#      $atmfile = $rank . '.atomname';
+    }
+   
+    print LISTFILE "$resnam\n";
+
+    open( COORFILE, ">$coorfile" ) || die "could not open $coorfile";
+    print COORFILE "TER\n";
+    for( $i = 0; $i < $count; $i++ ) {
+       $atnum = $latnum[ $i ];
+       $atname = $latname[ $i ];
+       $resname = $resnam;
+       $chn = ' ';
+       $resnum = '  1';
+       $x = $lxcrd[ $i ];  
+       $y = $lycrd[ $i ];  
+       $z = $lzcrd[ $i ];  
+       write COORFILE;
+    }
+    for( $i = 0; $i < $bond; $i++ ) {
+       print COORFILE "$conect[ $i ]";
+    }
+    open( CRGFILE, ">$crgfile" ) || die "could not open $crgfile";
+    for( $i = 0; $i < $count; $i++ ) {
+       print CRGFILE "$atomcrg[ $i ]\n" ;
+    }
+#    open( ATMFILE, ">$atmfile" ) || die "could not open $atmfile";
+#    for( $i = 0; $i < $count; $i++ ) {
+#       print ATMFILE "$latname[ $i ]\n" ;
+#    }
+
+    $count = 0;
+    $bond = 0;
+    $rank++; 
+    close COORFILE;
+    close CRGFILE;
+  } 
+   
+}
+
+close INFILE;
+close LISTFILE;
+
+format COORFILE = 
+@<<<<<@>>>> @<<< @>> @ @>>     @##.###@###.### @##.### @#.## @#.##
+$tag,$atnum,$atname,$resname,$chn,$resnum,$x,$y,$z,$occ,$temp
+.

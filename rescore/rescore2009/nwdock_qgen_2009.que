@@ -1,0 +1,125 @@
+#!/usr/bin/perl -w
+# niu, dec, 2005
+#
+
+use Cwd;
+$base_dir = cwd();
+$plop = '/opt/plop6.0';
+$plop_exec = "$plop/plop";
+$script_dir = $ENV{script_dir};
+$template = $ENV{template};
+
+$root  = $ARGV[ 0 ];
+$rec_dir  = $ARGV[ 1 ]; 
+$run_dir  = $ARGV[ 2 ];
+$crg_model = $ARGV[ 3 ];
+$cofactor = $ARGV[ 4 ];
+$rec_model = $ARGV[ 5 ];  # flexible or rigid
+
+$que_name = $root . '.' . $run_dir . '.que';
+$que_out = $root . '.' . $run_dir . '.que.out';
+$que_err = $root . '.' . $run_dir . '.que.err';
+
+$list = "$run_dir/list";
+
+open( LFILE, "$list") || die "could not open $list";
+open( QFILE, ">$que_name" ) || die "could not open $que_name";
+
+print QFILE "#!/bin/csh\n";
+print QFILE "#\$ -S /bin/csh\n";
+print QFILE "#\$ -cwd\n";
+print QFILE "#\$ -o $base_dir/$que_out\n";
+print QFILE "#\$ -e $base_dir/$que_err\n";
+print QFILE "#\$ -j y\n";
+print QFILE "#\$ -r y\n";
+print QFILE "#\$ -t 1-1\n";
+print QFILE "hostname\n";
+print QFILE "date\n";
+
+#--------------------------------------------------------
+#setting up Environment Variables
+print QFILE "\nsetenv template $template\n";
+print QFILE "setenv script_dir $script_dir\n";
+print QFILE "setenv LD_LIBRARY_PATH $plop\n";
+print QFILE "set path = ( \$path $plop )\n";
+print QFILE "setenv plop_exec $plop_exec\n";
+print QFILE "setenv plop_data $plop/data\n\n";
+#--------------------------------------------------------
+
+print QFILE "cd $base_dir\n";
+print QFILE "tar -czf $run_dir.tar.gz $run_dir\n";
+
+print QFILE "cd /pubdata\n";
+print QFILE "mkdir \$USER\n";
+print QFILE "cd \$USER\n";
+print QFILE "if ( ! -e $root) mkdir $root\n";
+print QFILE "cd $root\n";
+print QFILE "cp $base_dir/$run_dir.tar.gz .\n";
+print QFILE "rm -f $base_dir/$run_dir.tar.gz\n";
+print QFILE "tar -xzf $run_dir.tar.gz\n";
+print QFILE "rm -f $run_dir.tar.gz\n";
+print QFILE "cd $run_dir\n";
+print QFILE "gzip -d ???.het.gz ???.gz\n";
+print QFILE "cp $rec_dir/rec_h_opt.* .\n";
+print QFILE "cp $rec_dir/rec.site .\n" if(-e "$rec_dir/rec.site");
+print QFILE "cp $rec_dir/side.site .\n" if(-e "$rec_dir/side.site");
+
+if ( $crg_model eq "amsol") { 
+   print QFILE "if (-e $run_dir.pdb.gz) gzip -d $run_dir.pdb.gz\n";
+   print QFILE "$script_dir/nwdock_lig_split $run_dir.pdb\n";
+   print QFILE "$script_dir/nwdock_crg_replace\n";
+   print QFILE "echo REPLACE TO AMSOL CHARGES DONE\n";
+}
+
+if( $template eq "oldtemplate"){
+   print QFILE "$script_dir/nwdock_tmp_reformat\n";              # to new format
+   print QFILE "echo TEMPLATE REFORMATED: DONE\n";
+}
+
+print QFILE "$script_dir/nwdock_pdbconstruct rec_h_opt.pdb list\n";  # same as above
+print QFILE "$script_dir/nwdock_confile_2009 $cofactor $rec_dir $rec_model\n";  
+
+while(<LFILE>) {
+  ($vars) = split;
+   print QFILE "echo $vars.cmxmin.con | $plop_exec\n";
+   print QFILE "echo $vars.ligmin.con | $plop_exec\n";
+   print QFILE "sleep 300\n";
+   print QFILE "rm -f $vars.pdb\n";
+   if ($rec_model eq "rigid") {
+    print QFILE "$script_dir/extract_lig.pl out_files/${vars}_cmxmin.out out_files/${vars}_cmxmin.lig\n";
+    print QFILE "rm -f out_files/${vars}_cmxmin.out\n";
+    print QFILE "echo $vars.ligfix.con | $plop_exec\n";
+   }
+   if ($rec_model eq "flex") {
+    print QFILE "$script_dir/extract_lig_rec.pl out_files/${vars}_cmxmin.out out_files/${vars}_cmxmin.lig out_files/${vars}_cmxmin.rec\n";
+    print QFILE "echo $vars.recfix.con | $plop_exec\n";  # bug,need to add spheres 
+    print QFILE "echo $vars.ligfix.con | $plop_exec\n";
+    print QFILE "rm -f out_files/${vars}_cmxmin.out\n";
+    chomp($decoy = `echo $run_dir | cut -f1 -d. `);
+    if ($decoy ne "ligands") {                            #
+     print QFILE "rm -f out_files/${vars}_cmxmin.rec\n";  #we only keep ligands' ones
+    }                                                     # 
+   }
+}
+
+print QFILE "$script_dir/nrg_set_2009 $root.$run_dir.junk $rec_model\n";
+print QFILE "paste namelist $root.$run_dir.junk  > $root.$run_dir.ene\n";
+print QFILE "rm -f $root.$run_dir.junk\n";
+print QFILE "mv $root.$run_dir.ene $rec_dir\n";
+
+#-----------------------------------------------------
+#merging files and cleaning up run_dir
+print QFILE "rm -rf $base_dir/$run_dir\n";
+print QFILE "$script_dir/nwdock_clean $run_dir $rec_model $cofactor\n";
+print QFILE "cd ..\n";
+print QFILE "cp $run_dir.tar.gz $base_dir\n";
+print QFILE "rm -rf $run_dir.tar.gz $run_dir\n";
+
+# print QFILE "cd ..\n";
+# print QFILE "rm -rf $root\n";	# adding by Zhou Yu, 2010-06-25 (wrong, should make dir seperately and rm)
+
+print QFILE "echo $que_name successfully DONE\n";
+
+close QFILE;
+close LFILE;
+

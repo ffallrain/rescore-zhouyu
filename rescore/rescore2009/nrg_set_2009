@@ -1,0 +1,133 @@
+#!/usr/bin/perl -w 
+
+# usage: directory output.ene
+# niu 
+# July, Aug, dec,2005 to write out the energetic components
+
+$elist = $ARGV[ 0 ];
+$rec_model = $ARGV[ 1 ];
+
+$listfile = 'list';
+open( LIST, "$listfile") || die "could not open $listfile";
+open( ELIST, ">$elist") || die "could not open $elist";
+
+#if ($rec_model eq "rigid") {
+# printf ELIST "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",'ID ','      CMXTOT','      CMXSOL','      CMXVDW','      CMXELE',' HYDROPHOBIC','     RECTOT','     RECSOL','     RECVDW','     RECELE','    LIGTOT','    LIGSOL','    LIGVDW','    LIGELE',' LIGFIXTOT',' LIGFIXSOL',' LIGFIXVDW',' LIGFIXELE';
+#}
+
+#if ($rec_model eq "flex") {
+# printf ELIST "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",'ID ','      CMXTOT','      CMXSOL','      CMXVDW','      CMXELE',' HYDROPHOBIC','     RECTOT','     RECSOL','     RECVDW','     RECELE','    LIGTOT','    LIGSOL','    LIGVDW','    LIGELE',' LIGFIXTOT',' LIGFIXSOL',' LIGFIXVDW',' LIGFIXELE','  RECFIXTOT','  RECFIXSOL','  RECFIXVDW','  RECFIXELE';
+#}
+
+while( <LIST> ) {
+  ($model) = split;
+
+  $var1 = "$model". '_cmxmin';
+  $var2 = 'rec_h_opt';
+  $var3 = "$model". '_ligmin';
+  $var4 = "$model". '_ligfix';
+  
+  chomp($tot1 = `grep TOTALE ./log_files/$var1.log |tail -1 |cut -b 9- `); 
+  chomp($sol1 = `grep 'SOLV TOT' ./log_files/$var1.log |tail -1 |cut -b 9- `);
+  chomp($vdw1 = `grep 'LJ  ' ./log_files/$var1.log |tail -1 |cut -b 57- `);
+  chomp($ele1 = `grep 'EL  ' ./log_files/$var1.log |tail -1 |cut -b 57- `);
+  chomp($hyd1 = `grep "Total Hydrophobic Energy" ./log_files/$var1.log |tail -1 | cut -b 60-67 `);
+
+  chomp($tot2 = `grep TOTALE $var2.log |tail -1 |cut -b 9- `); 
+  chomp($sol2 = `grep 'SOLV TOT' $var2.log |tail -1 |cut -b 9- `);
+  chomp($vdw2 = `grep 'LJ  ' $var2.log |tail -1 |cut -b 57- `);
+  chomp($ele2 = `grep 'EL  ' $var2.log |tail -1 |cut -b 57- `);
+
+  chomp($tot3 = `grep TOTALE ./log_files/$var3.log |tail -1 |cut -b 9- `); 
+  chomp($sol3 = `grep 'SOLV TOT' ./log_files/$var3.log |tail -1 |cut -b 9- `);
+  chomp($vdw3 = `grep 'LJ  ' ./log_files/$var3.log |tail -1 |cut -b 57- `);
+  chomp($ele3 = `grep 'EL  ' ./log_files/$var3.log |tail -1 |cut -b 57- `);
+
+  chomp($tot4 = `grep TOTALE ./log_files/$var4.log |head -1 |cut -b 9- `);
+  chomp($sol4 = `grep 'SOLV TOT' ./log_files/$var4.log |head -1 |cut -b 9- `);
+  chomp($vdw4 = `grep 'LJ  ' ./log_files/$var4.log |head -1 |cut -b 57- `);
+  chomp($ele4 = `grep 'EL  ' ./log_files/$var4.log |head -1 |cut -b 57- `);
+
+  chomp($tot5 = `grep TOTALE ./log_files/$var4.log |tail -1 |cut -b 9- `);
+  chomp($sol5 = `grep 'SOLV TOT' ./log_files/$var4.log |tail -1 |cut -b 9- `);
+  chomp($vdw5 = `grep 'LJ  ' ./log_files/$var4.log |tail -1 |cut -b 57- `);
+  chomp($ele5 = `grep 'EL  ' ./log_files/$var4.log |tail -1 |cut -b 57- `);
+
+  if( $tot1 eq '') {
+    $tot1 = ' -000000.000';
+  }
+  if( $tot1 eq ' ***************') {
+    $tot1 = ' -000000.000';
+  }
+  if( $tot1 >= 999999) {
+    $tot1 = ' -000000.000';
+  }
+
+  if( $hyd1 eq '') {
+    $tot1 = ' -000000.000';
+  }
+  if( $hyd1 eq ' ***************') {
+    $tot1 = ' -000000.000';
+  }
+  if( $hyd1 >= 999999) {
+    $tot1 = ' -000000.000';
+  }
+
+  if( $tot2 eq '') {
+    $tot2 = ' -00000.000';
+  }
+
+  if( $tot3 eq '') {
+    $tot3 = ' -0000.000';
+  }
+  if( $tot3 eq ' ***************') {
+    $tot3 = ' -0000.000';
+  }
+  if( $tot3 >= 250) {
+    $tot3 = ' -000000.000';
+  }
+  if( $tot4 eq '') {
+    $tot4 = ' -0000.000';
+  }
+  if( $tot4 eq ' ***************') {
+    $tot4 = ' -0000.000';
+  }
+  if( $tot4 >= 250) {
+    $tot4 = ' -0000.000';
+  }
+  if( $tot5 eq '') {
+    $tot5 = ' -0000.000';
+  }
+  if( $tot5 eq ' ***************') {
+    $tot5 = ' -0000.000';
+  }
+  if( $tot5 >= 250) {
+    $tot5 = ' -0000.000';
+  }
+
+  if ($rec_model eq "rigid") {
+     printf ELIST "%s %12.3f %12.3f %12.3f %12.3f %12.3f %11.3f %11.3f %11.3f %11.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f\n",$model,$tot1,$sol1,$vdw1,$ele1,$hyd1,$tot2,$sol2,$vdw2,$ele2,$tot3,$sol3,$vdw3,$ele3,$tot4,$sol4,$vdw4,$ele4,$tot5,$sol5,$vdw5,$ele5;
+  }
+
+  if ($rec_model eq "flex") {
+     $var6 = "$model". '_recfix';
+     chomp($tot6 = `grep TOTALE ./log_files/$var6.log |tail -1 |cut -b 9- `);
+     chomp($sol6 = `grep 'SOLV TOT' ./log_files/$var6.log |tail -1 |cut -b 9- `);
+     chomp($vdw6 = `grep 'LJ  ' ./log_files/$var6.log |tail -1 |cut -b 57- `);
+     chomp($ele6 = `grep 'EL  ' ./log_files/$var6.log |tail -1 |cut -b 57- `);
+
+     if( $tot6 eq '') {
+       $tot6 = ' -00000.000';
+     }
+     if( $tot6 eq ' ***************') {
+       $tot6 = ' -00000.000';
+     }
+     if( $tot6 >= 999999) {
+       $tot6 = ' -000000.000';
+     }
+     printf ELIST "%s %12.3f %12.3f %12.3f %12.3f %12.3f %11.3f %11.3f %11.3f %11.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %10.3f %11.3f %11.3f %11.3f %11.3f\n",$model,$tot1,$sol1,$vdw1,$ele1,$hyd1,$tot2,$sol2,$vdw2,$ele2,$tot3,$sol3,$vdw3,$ele3,$tot4,$sol4,$vdw4,$ele4,$tot5,$sol5,$vdw5,$ele5,$tot6,$sol6,$vdw6,$ele6;
+  }
+}
+
+close LIST;
+close ELIST;

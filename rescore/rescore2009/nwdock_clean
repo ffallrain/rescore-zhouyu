@@ -1,0 +1,77 @@
+#!/bin/csh
+#
+#to merge rescoring outputs
+#
+#modified on Mar.12th, 2009
+
+set rundir = $1
+set rec_model = $2
+set cofactor = $3
+
+rm -rf data fort.2 $rundir.pdb.gz *.con rec_h_opt.*
+if(-e "side.site") then
+	rm -f side.site
+endif
+if(-e "rec.site") then
+	rm -f rec.site
+endif
+if(-e "$cofactor") then
+	rm -f $cofactor
+endif
+if(-e "diel_int.dat") then
+	rm -f diel_int.dat
+endif
+if(-e "ionic_strength.dat") then
+	rm -f ionic_strength.dat
+endif
+ls *.amsolcrg >& /dev/null
+if($? == 0) then
+	rm -f *.amsolcrg
+endif
+
+foreach para (???)
+	echo "$para.gz" >> para
+	cat $para >> para
+	rm -f $para
+end
+foreach het (???.het)
+	echo "$het.gz" >> het
+	cat $het >> het
+	rm -f $het
+end
+cd log_files
+foreach type (ligmin cmxmin ligfix)
+	foreach file (*_$type.log)
+		echo "$file.gz" >> $type.log
+   	    cat $file >> $type.log
+		rm -f $file
+	end
+end
+if ($rec_model == "flex") then
+	foreach file (*_recfix.log)
+		echo "$file.gz" >> recfix.log
+   	    cat $file >> recfix.log
+		rm -f $file
+	end
+endif
+cd ../out_files
+foreach type (ligmin.out cmxmin.lig)
+	foreach file (*_$type)
+		echo "$file.gz" >> $type
+   	    cat $file >> $type
+		rm -f $file
+	end
+end
+if ($rec_model == "flex") then
+	ls *_cmxmin.rec >& /dev/null
+	if($? == 0) then
+	foreach file (*_cmxmin.rec)
+		echo "$file.gz" >> cmxmin.rec
+   	    cat $file >> cmxmin.rec
+		rm -f $file
+	end
+	endif
+endif
+cd ../..
+tar czf $rundir.tar.gz $rundir
+cd $rundir

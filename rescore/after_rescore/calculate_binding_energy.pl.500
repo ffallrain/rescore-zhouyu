@@ -1,0 +1,117 @@
+#!/usr/bin/perl
+#from C Huang
+#modified on May 4th, 2009
+
+$cut=500;
+$curdir = `pwd`;
+chop($curdir);
+%index_rec = ("opt", 7, "fix", 23);
+%index_lig = ("min", 11, "fix", 15);
+$rec_model = "opt";
+$lig_model = "min";
+@dir = (".");
+$pattern = "decoys/2.3";
+if(3 == $#ARGV)
+{
+	($jobname, $pattern, $rec_model, $lig_model) = @ARGV;
+}
+elsif(1 == $#ARGV)
+{
+	($jobname, $pattern) = @ARGV;
+}
+elsif(0 == $#ARGV)
+{
+	$jobname=$ARGV[0];
+}
+elsif(4 <= $#ARGV)
+{
+	($jobname, $pattern, $rec_model, $lig_model) = @ARGV[0..3];
+	@dir = @ARGV[4..$#ARGV];
+}
+else
+{
+	print "\n   Usage: calculate_binding_energy.pl jobname [directory_pattern] [rec_model(opt/fix)] [lig_model(min/fix)] [directory_list]\n\n",
+	        "      Default: rec_model: opt, lig_model: min, directory_list: \"./\", directory_pattern: \'decoys/2.3\'\n\n";
+	exit();
+}
+
+open ERROR,">$jobname.error"or die"No $jobname.error\n ";
+open RES,">$jobname.out"or die"No $jobname.out\n";
+$all=0;$false=0;$yepp=0;
+
+foreach $dir (@dir)
+{
+	@file=();
+	chdir($dir) || die("unable to cd to $dir");
+	push(@file, glob("*.ene"));
+	$plus=@file;
+	#print "$plus, @file\n";
+	for($i=0;$i<$plus;$i++)
+	{
+		open FILE,"$file[$i]"or die"No $file[$i]\n";
+		@source=split(/\./,$file[$i]);                    # print"@source\n";<STDIN>;
+		if($pattern =~ /([^\/]+)\/(\d+)\.(\d+)/)
+		{
+			$fetch_1 = $1;
+			$index1 = $2 - 1;
+			$index2 = $3 - 1;
+			$fetch_2 = "$source[$index1].$source[$index2]";
+		}
+		elsif($pattern =~ /([^\/]+)\/(\d+)/)
+		{
+			$fetch_1 = $1;
+			$index1 = $2 - 1;
+			$fetch_2 = "$source[$index1]";
+		}
+		else
+		{
+			print "unrecognized pattern: $pattern\n";
+		}
+		$back="$dir/$fetch_1/$fetch_2";
+		print ERROR "$file[$i]\n";
+
+		@read=<FILE>;$line=@read;$all+=$line;
+		for($p=0;$p<$line;$p++)
+		{
+			@split_1=split(/\s{1,}/,$read[$p]);
+			unless($read[$p] =~ / 0\.000/ || $read[$p] =~ /-0\.000/ || $split_1[11] >= $cut || $read[$p] =~ /nan|inf/)
+			{
+				$binding=$split_1[2]-$split_1[$index_rec{$rec_model}]-$split_1[$index_lig{$lig_model}];
+				print RES "$back $split_1[1] $split_1[0] $split_1[2] $split_1[$index_rec{$rec_model}] $split_1[$index_lig{$lig_model}] ";
+				printf RES "%.3f \n",$binding;
+				$yepp++;
+				$id=join(" ",($back,$split_1[1],$split_1[0],$split_1[2],$split_1[$index_rec{$rec_model}],$split_1[$index_lig{$lig_model}]));  
+				push(@final,$id);
+				push(@final,$binding);
+			}
+			else
+			{
+				print ERROR $read[$p];$false++;
+			}
+		}
+		close FILE;
+		print"$dir/$file[$i] done\n";
+	}
+	chdir($curdir) || die("unable to cd to $curdir"); 
+}
+
+print"$all molecules rescored\n";
+print RES "there are $yepp in all for $jobname\n";
+print ERROR "there are $false errors in all for $jobname\n";
+close ERROR;
+
+open SORT ,"+>output.$jobname.sorted"or die"No output.$jobname.sorted\n";
+%relation=@final;
+$t=1;
+foreach $holder (sort change (keys(%relation))){
+print SORT "$t ";
+printf SORT "%.3f ",$relation{$holder};
+print SORT "$holder \n";
+$t++;
+}
+close SORT;
+
+sub change{
+$relation{$a} <=> $relation {$b};
+}
+

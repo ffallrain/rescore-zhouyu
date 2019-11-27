@@ -1,0 +1,99 @@
+#!/usr/bin/perl
+#
+# usage crg_replace 
+# to replace the opls1999 charge with amsol charge from xpdb file
+# niu, march, 2004
+
+$[ = 1;                 # set array base to 1
+$/ = "\n";              # set input record separator
+$, = ' ';               # set output field separator
+$\ = "\n";              # set output record separator
+
+$listfile = 'impact.list';    
+
+open(IMPACTLIST, "$listfile") || die "could not open $listfile";
+
+while (<IMPACTLIST>) {
+
+  ($ligno) = split;
+  $inpfile = "$ligno";
+  $crgfile = "$ligno.amsolcrg";
+  $outfile = "$ligno.tmp";
+
+  open(INPFILE,"<$inpfile") || die "can't open $inpfile to update charge\n";
+  open(CRGFILE,"<$crgfile") || die "can't open $crgfile\n";
+  open(OUTFILE,">$outfile") || die "could not open $outfile";
+
+  while (<INPFILE>) {
+     if (substr($_,1,15) eq "* DATABASE FILE")  { 
+        printf OUTFILE "%s",$_;            #print title info
+        $_ = <INPFILE>;
+        printf OUTFILE "%s",$_;
+        $_ = <INPFILE>;
+        printf OUTFILE "%s",$_;
+        @Fld = split(' ',$_,999);
+        $natom = $Fld[2];
+#        print "$natom\n";
+ 
+        for ($i=1; $i<=$natom; $i++) {     # print atom info
+             $_=<INPFILE>;
+             printf OUTFILE "%s",$_;
+        }
+
+        if ( $natom%8  == 0 ) {   # for print out the atomic charges as impact format
+             $nline = int $natom/8;
+#             print "$nline\n";
+        }    else {
+             $nline = int $natom/8 +1;
+#             print "$nline\n";
+        }
+
+        for ($i=1; $i<=$nline; $i++) {  # skip the old OPLS charges
+             $_=<INPFILE>;
+#             printf OUTFILE "%s",$_;   #test
+        }
+
+        for ($i=1; $i<=$natom; $i++) {  # initiate with 0   
+             $amsolcrgs[$i] = 0;
+        }
+
+        @amsolcrgs = <CRGFILE>;
+
+        $start = 1;
+        $end = $natom;
+
+        for ($i=1; $i<=$nline; $i++) {   #each line with 8 atomic charge values
+           
+            for ($j=1; $j<=8; $j++) {    #initiate and assign the new charge
+                 if ($start == $end ) {
+                    $newcrg[$j] = 0;
+                    $newcrg[$j] = $amsolcrgs[$start];
+                    printf OUTFILE "%10.6f\n", $newcrg[$j];
+                    last;
+                 }  else {
+
+                    $newcrg[$j] = 0; 
+                    $newcrg[$j] = $amsolcrgs[$start];  
+                    if ($start%8  == 0 ) {
+                       printf OUTFILE "%10.6f\n", $newcrg[$j];  
+                    }  else {
+                       printf OUTFILE "%10.6f", $newcrg[$j];
+                    }
+                    $start++;
+                 }
+            } 
+
+        }
+     }
+     else { 
+        printf OUTFILE "%s",$_;         # print the rest
+     }
+
+  }     # end of INPFILE loop
+
+  close (INPFILE);
+  close (OUTFILE);
+  close (CRGFILE);
+  system "mv $inpfile data";
+  system "mv $outfile $inpfile";
+}

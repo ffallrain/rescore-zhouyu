@@ -1,0 +1,115 @@
+################################################################################
+#                                                                              #
+#                       Pipeline for Plop rescoring                            #
+#                                                                              #
+################################################################################
+
+version 2009
+
+#----------------------------------------------------------------------------------------------
+Changes since last version:
+
+1. Template type (template/oldtemplate) can be adjusted according to opls version (1999/200*)
+
+2. Samll files in each sub-directory (e.g. decoys.0000001) will be merged and final output 
+will be a compressed tar archive(e.g. decoys.0000001.tar.gz)
+
+tar archive:
+   |--impact.list
+   |--list
+   |--namelist
+   |
+   |--het                       } merged *.het
+   |--para                      } merged parameter files
+   |
+   |--log_files--|---cmxmin.log } merged *_cmxmin.log
+   |             |---ligfix.log } merged *_ligfix.log
+   |             |---ligmin.log } merged *_ligmin.log
+   |             |---recfix.log } merged *_recfix.log if exist
+   |
+   |--out_files--|---cmxmin.lig } merged *_cmxmin.lig
+   |             |---ligmin.out } merged *_ligmin.out
+   |             |---cmxmin.rec } merged *_cmxmin.rec if exist
+
+Other files like data, fort.2, decoys.0000001.pdb.gz will be removed.
+
+3. All files including rec_h_opt.*, *.site, cofactor, diel_int.dat, and ionic_strength.dat will
+be copied to local disk before rescoring, to reduce reading through NFS. Side effect is that
+a tiny bug when having cofactor has been fixed.
+
+
+#----------------------------------------------------------------------------------------------
+Usage: 
+
+1. super_submit_2009.csh jobname charge_model(opls/amsol/current) opls_version(1999/200*) queue_name(all.q/mars/...) cofactor_name(if have)
+#Note: script_dir can be changed in super_submit_2009.csh by modifying Line 39 "setenv script_dir ...";
+#       Path of Polp can be changed in nwdock_qgen_2009 by modifying Line 7 "$plop = '/usr/local/plop6.0';"
+
+	Output: jobname.*.ene
+	Columns in jobname.*.ene:
+		ligand_name (the same as in namelist)
+		ligand_serial_number (the same as in list)
+		complex_total_energy (TOTALE)
+		complex_desolvation_energy (SOLV TOT)
+		complex_vdw_energy (LJ)
+		complex_electrostatic_energy (EL)
+		ligand-receptor_hydrophobic_interaction_energy (Total Hydrophobic Energy, "inter")
+		receptor_total_energy
+		receptor_desolvation_energy
+		receptor_vdw_energy
+		receptor_electrostatic_energy
+		ligmin_total_energy
+		ligmin_desolvation_energy
+		ligmin_vdw_energy
+		ligmin_electrostatic_energy
+		ligfix_before_re-minimize_total_energy
+		ligfix_before_re-minimize_desolvation_energy
+		ligfix_before_re-minimize_vdw_energy
+		ligfix_before_re-minimize_electrostatic_energy
+		ligfix_after_re-minimize_total_energy
+		ligfix_after_re-minimize_desolvation_energy
+		ligfix_after_re-minimize_vdw_energy
+		ligfix_after_re-minimize_electrostatic_energy
+		recfix_total_energy  (if rec_model == "flex")
+		recfix_desolvation_energy  (if rec_model == "flex")
+		recfix_vdw_energy  (if rec_model == "flex")
+		recfix_electrostatic_energy  (if rec_model == "flex")
+
+2. calculate_binding_energy.pl jobname [directory_pattern] [rec_model(opt/fix)] [lig_model(min/fix)] [directory_list]
+# Default: rec_model: opt, lig_model: min
+# directory_list is a space separated list of derectories to rank together, which contain the *.ene files (default: './');
+# About directory_pattern (default: 'decoys/2.3'): 'decoys/2.3' means the directory to extract ligand structure begains with 'decoys/', and followed by a '.' joined name of the 2nd and the 3rd elements from spliting the rescore energy output filename with '.';
+# e.g. If energy output from rescore is test.decoys.0000001.ene, according to default directory_pattern 'decoys/2.3', directory_to_extract_ligand_structure is 'decoys/decoys.0000001';
+
+	Output: output.jobname.sorted
+	Columns in output.jobname.sorted:
+		rank
+		total_binding_energy
+		directory_to_extract_ligand_structure
+		ligand_serial_number
+		ligand_name
+		complex_total_energy
+		receptor_total_energy
+		ligmin_total_energy
+
+3. extract_from_decoys.pl jobmname [max_number_of_structures_to_extract(default: 500)]
+
+	Output: jobmname-cmxminlig.pdb (can be viewed using chimera ViewDock -> Dock 3.5.x search)
+
+
+#----------------------------------------------------------------------------------------------
+To clean up outputs from last version of rescoring:
+
+merge.csh directory_list
+
+  directory_list is space separated list of directories to clean up
+  e.g. merge.csh /tmp/test1/decoys /tmp/test2/decoys
+
+
+To recover:
+
+recover.csh tgz_list
+#  Note: remember to change script_dir in this script to the location of recover.pl
+
+  tgz_list is space separated list of compressed tar archives to recover
+  e.g. recover.csh /tmp/test1/decoys.tar.gz /tmp/test2/decoys.tar.gz

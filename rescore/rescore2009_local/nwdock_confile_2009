@@ -1,0 +1,137 @@
+#!/usr/bin/perl
+# usage: confile_gen NDP /home/nhuang/test flex or confile_gen false /home/nhuang/test rigid
+# option "false" means no cofactor. whatever ions or waters included in rec.pdb file will be used.
+# niu, dec, 2005
+
+$cofactor = $ARGV[0];           $cofactoruc = uc($cofactor);
+$cofactor_dir = $ARGV[1];
+$rec_model = $ARGV[2];
+
+print "confactor $cofactor will be used from directory $cofactor_dir \n";
+
+use Cwd;
+$work_dir = cwd();  # current directory
+$plop_exec = $ENV{plop_exec};
+$plop_data = $ENV{plop_data};
+$template = $ENV{template};
+
+if ( !-e "diel_int.dat" && -e "$cofactor_dir/diel_int.dat") {
+   `cp $cofactor_dir/diel_int.dat .`;
+}
+if ( -e "diel_int.dat") {
+   $diel_int = `cat diel_int.dat`;
+   chomp $diel_int;
+   print "internal dielectric constant is $diel_int\n";
+}
+else {
+   $diel_int = 1;
+   print "internal dielectric constant is 1\n";
+}
+
+if ( !-e "ionic_strength.dat" && -e "$cofactor_dir/ionic_strength.dat") {
+   `cp $cofactor_dir/ionic_strength.dat .`;
+}
+if ( -e "ionic_strength.dat") {
+   $ionic = `cat ionic_strength.dat`;
+   chomp $ionic;
+   print "ionic_strength is $ionic\n";
+}
+else {
+   $ionic = 0;
+   print "ionic_strength is 0\n";
+}
+if(!-e "$cofactor" && -e "$cofactor_dir/$cofactor") {
+   `cp $cofactor_dir/$cofactor .`;
+}
+
+open(JOBFILE,"list") || die "could not open list file";
+while (<JOBFILE>) {
+  ($jobname) = split;
+  $ligminfile = "$work_dir/$jobname.ligmin.con";
+  $cmxminfile = "$work_dir/$jobname.cmxmin.con";
+  $ligfixfile = "$work_dir/$jobname.ligfix.con";
+  $recfixfile = "$work_dir/$jobname.recfix.con";
+
+#  print "confile_gen is processing $jobname\n"; 
+
+  open(LIGMIN,">$ligminfile") || die "could not open outfile for ligand";
+  print LIGMIN "jobname $jobname\n";
+  print LIGMIN "file datadir $plop_data\n";
+  print LIGMIN "logfile ./log_files/${jobname}_ligmin.log\n";
+  if ($diel_int ne 1) {print LIGMIN "energy params diel_int $diel_int\n"}
+  if ($ionic ne 0) {print LIGMIN "energy params ionic $ionic\n"}
+  print LIGMIN "load pdb $jobname.het &\n";
+  print LIGMIN "  $template $jobname $jobname &\n";
+  print LIGMIN "  het yes\n";
+  print LIGMIN "minim res single _:1 &\n";
+#  print LIGMIN "  rmsg 0.05 &\n";
+#  print LIGMIN "  mxitn 3 &\n";
+  print LIGMIN "  verbose yes\n";
+  print LIGMIN "energy calc\n";
+  print LIGMIN "structure write ./out_files/${jobname}_ligmin.out\n";
+  close(LIGMIN);
+
+  open(LIGFIX,">$ligfixfile") || die "could not open outfile for ligand";
+  print LIGFIX "jobname $jobname\n";
+  print LIGFIX "file datadir $plop_data\n";
+  print LIGFIX "logfile ./log_files/${jobname}_ligfix.log\n";
+  if ($diel_int ne 1) {print LIGFIX "energy params diel_int $diel_int\n"}
+  if ($ionic ne 0) {print LIGFIX "energy params ionic $ionic\n"}
+  print LIGFIX "load pdb ./out_files/${jobname}_cmxmin.lig &\n";
+  print LIGFIX "  $template $jobname $jobname &\n";
+  print LIGFIX "  het yes\n";
+  print LIGFIX "energy calc\n";
+  print LIGFIX "minim res single _:1 &\n";
+  print LIGFIX "  verbose yes\n";
+  print LIGFIX "energy calc\n";
+  close(LIGFIX);
+
+  open(CMXMIN,">$cmxminfile") || die "could not open outfile for complex";
+  print CMXMIN "jobname $jobname\n";
+  print CMXMIN "file datadir $plop_data\n";
+  print CMXMIN "logfile ./log_files/${jobname}_cmxmin.log\n";
+  if ($diel_int ne 1) {print CMXMIN "energy params diel_int $diel_int\n"}
+  if ($ionic ne 0) {print CMXMIN "energy params ionic $ionic\n"}
+  print CMXMIN "load pdb $jobname.pdb &\n";
+  if ($cofactor ne "false") {print CMXMIN "$template $cofactoruc $cofactor &\n"}
+  print CMXMIN "  $template $jobname $jobname &\n";
+  print CMXMIN "  het yes &\n";
+  print CMXMIN " ions yes &\n";
+  print CMXMIN "  wat yes\n";     # testing the orientation of polar hydrogens
+#  print CMXMIN "  opt yes\n";       # commenting out later
+  print CMXMIN "energy calc\n";
+  print CMXMIN "minim res single _:1 &\n";
+  if ($rec_model eq "flex") {
+    print CMXMIN "  mxitn 15 &\n";                           #round one
+    print CMXMIN "  verbose yes\n";
+    print CMXMIN "side predict file side.site &\n";
+    print CMXMIN "  ofac_min 0.5 &\n";
+    print CMXMIN "  randomize no\n";
+    print CMXMIN "minim res file rec.site &\n";
+    print CMXMIN "  mxitn 30 &\n";
+    print CMXMIN "  verbose yes\n";                           
+    print CMXMIN "minim res single _:1 &\n";
+  }
+  print CMXMIN "  verbose yes\n";
+  print CMXMIN "energy calc\n";
+  print CMXMIN "energy lipocalc group heavy single _:1 \n"; #lipo calculation
+  print CMXMIN "structure write ./out_files/${jobname}_cmxmin.out\n";
+  close(CMXMIN);
+
+  if($rec_model eq "flex") {
+    open(RECFIX,">$recfixfile") || die "could not open outfile for complex";
+    print RECFIX "jobname $jobname\n";
+    print RECFIX "file datadir $plop_data\n";
+    print RECFIX "logfile ./log_files/${jobname}_recfix.log\n";
+    if ($diel_int ne 1) {print RECFIX "energy params diel_int $diel_int\n"}
+    if ($ionic ne 0) {print RECFIX "energy params ionic $ionic\n"}
+    print RECFIX "load pdb ./out_files/${jobname}_cmxmin.rec &\n";
+    if ($cofactor ne "false") {print RECFIX "$template $cofactoruc $cofactor &\n"}
+    print RECFIX "  het yes &\n";
+    print RECFIX " ions yes &\n";
+    print RECFIX "  wat yes\n";
+    print RECFIX "energy calc\n";
+    close(RECFIX);
+  }
+}
+

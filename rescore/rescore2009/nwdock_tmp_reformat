@@ -1,0 +1,70 @@
+#!/usr/bin/perl
+#
+# usage tmp_reformat 
+# to reformat the atom type for PLOP (version 1.7 and later) to read old template
+# niu, sep, 2005
+
+$[ = 1;                 # set array base to 1
+$/ = "\n";              # set input record separator
+$, = ' ';               # set output field separator
+$\ = "\n";              # set output record separator
+
+$listfile = 'impact.list';    
+
+open(IMPACTLIST, "$listfile") || die "could not open $listfile";
+
+while (<IMPACTLIST>) {
+
+  ($ligno) = split;
+  $inpfile = "$ligno";
+  $outfile = "$ligno.tmp";
+
+  open(INPFILE,"<$inpfile") || die "can't open $inpfile to reformat\n";
+  open(OUTFILE,">$outfile") || die "could not open $outfile";
+
+  while (<INPFILE>) {
+     if (substr($_,1,15) eq "* DATABASE FILE")  {
+        printf OUTFILE "%s",$_;            #print title info
+        $_ = <INPFILE>;
+        printf OUTFILE "%s",$_;
+        $_ = <INPFILE>;
+        printf OUTFILE "%s",$_;
+        @Fld = split(' ',$_,99);
+        $natom = $Fld[2];
+#        print "$natom\n";
+
+        for ($i=1; $i<=$natom; $i++) {     # print atom info
+             $_=<INPFILE>;
+             $str1[ $i ] = substr( $_, 1, 21 );
+             $str2[ $i ] = substr( $_, 22, 4 );
+             $str3[ $i ] = substr( $_, 26, 42 );
+
+             $str2[ $i ] =~ s/\s+//;
+#             print "$str2[ $i ]\n";
+             $length_str2 [ $i ] = length($str2[ $i ]);
+#             print "$length_str2[ $i ]\n";
+
+             if( $length_str2[ $i ] == 2 ) {
+               $str4[ $i ] = '_' . $str2[ $i ] . '_';
+             }
+             elsif ( $length_str2[ $i ] == 3 ) {
+               $str4[ $i ] = '_' . $str2[ $i ] ;
+             }
+             elsif ( $length_str2[ $i ] == 4 ) {
+               $str4[ $i ] = $str2[ $i ] ;
+             }
+
+#             print "$str4[ $i ]\n";
+             printf OUTFILE "%s%s%s\n",$str1[ $i ],$str4[ $i ],$str3[ $i ];
+        }
+     }
+     else {
+        printf OUTFILE "%s",$_;         # print the rest
+     }
+  }     # end of INPFILE loop
+
+  close (INPFILE);
+  close (OUTFILE);
+  system "mv $inpfile data";
+  system "mv $outfile $inpfile";
+}

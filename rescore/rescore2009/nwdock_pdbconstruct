@@ -1,0 +1,108 @@
+#!/usr/bin/perl -w
+# niu, march, 2004
+# usage pdbconstruct receptor.pdb list
+# modified by Zhou Yu, 2010-06-18
+
+$recpdb = $ARGV[ 0 ];
+$listfile = 'list';
+
+open( RECEPTOR, "$recpdb" ) || die "could not open $recpdb";
+
+$occ = 1.0;
+$temp= 0.0;
+
+$irec = 0;
+while(<RECEPTOR>) {
+  if((/^ATOM/) or (/^HETATM/) ) {
+    $rec_tag[ $irec ] = substr($_,0,6);
+    $rec_atnum[ $irec ] = substr($_,6,5);	# Zhou Yu
+##    $rec_atnum[ $irec ] = substr($_,7,4); 
+    $rec_atname[ $irec ] = substr($_,12,4);
+    $rec_resname[ $irec ] = substr($_,17,3);
+##						lack atlLoc, nothing matter
+    $rec_chn[ $irec ] = substr($_,21,1);     # niu
+    $rec_resnum[ $irec ] = substr($_, 22,5);	# Zhou Yu    23-26:resnum  27:iCode fore insertion of res
+##    $rec_resnum[ $irec ] = substr($_,23,4);  # niu
+    $rec_x[ $irec ] = substr($_,30,8);
+    $rec_y[ $irec ] = substr($_,38,8);
+    $rec_z[ $irec ] = substr($_,46,8);
+    $irec++;
+  }
+} 
+
+open(LIGLIST, "$listfile") || die "could not open $listfile";
+
+while(<LIGLIST>) {
+
+  ($ligno) = split;
+  $ligfile = "$ligno.het";
+  open(LIGFILE, "$ligfile") || die "could not open $ligfile";
+
+  $ilig = 0;
+  while(<LIGFILE>) {
+    if(/^HETATM/) {
+      $lig_tag[ $ilig ] = substr($_,0,6);
+      $lig_atnum[ $ilig ] = substr($_,6,5);	# Zhou Yu
+##      $lig_atnum[ $ilig ] = substr($_,9,2); 
+      $lig_atname[ $ilig ] = substr($_,12,4);
+      $lig_resname[ $ilig ] = substr($_,17,3);
+##						lack iCode, nothing matter
+      $lig_resnum[ $ilig ] = substr($_,22,5);	# Zhou Yu
+      $lig_resnum[ $ilig ] = substr($_,23,4); #niu
+      $lig_x[ $ilig ] = substr($_,30,8);
+      $lig_y[ $ilig ] = substr($_,38,8);
+      $lig_z[ $ilig ] = substr($_,46,8);
+      $ilig++;
+    }
+  } 
+
+  $pdbfile = "$ligno.pdb";
+  open(OUTFILE, ">$pdbfile") || die "could not open $pdbfile";
+  
+  $i = 0;
+  $icount = 1;
+  while( $i < $irec ) {
+    $tag = $rec_tag[ $i ];
+    $atname = $rec_atname[ $i ];
+    $atnum = $rec_atnum[ $i ];
+    $resname = $rec_resname[ $i ];
+#    $chn = 'A';                        niu, important for dimer...
+    $chn = $rec_chn[ $i ];
+    $resnum = $rec_resnum[ $i ];
+    $x = $rec_x[ $i ];
+    $y = $rec_y[ $i ];
+    $z = $rec_z[ $i ];
+    if( ($tag eq 'HETATM') and ($icount) and $resnum !~ /(ABU|PCA|SEP|LLP|KCX|TRQ)/) {	# Zhou Yu, to improve
+#    if( ($tag eq 'HETATM') and ($icount) ) {
+      print OUTFILE "TER\n";
+      $icount = 0;
+    }
+    write OUTFILE;
+    $i++;
+  } 
+
+  $j = 0;
+      print OUTFILE "TER\n";
+  while( $j < $ilig ) {
+    $tag = $lig_tag[ $j ];
+    $atname = $lig_atname[ $j ];
+    $atnum = $lig_atnum[ $j ];
+    $resname = $lig_resname[ $j ];
+    $chn = ' ';
+    $resnum = $lig_resnum[ $j ];
+    $x = $lig_x[ $j ];
+    $y = $lig_y[ $j ];
+    $z = $lig_z[ $j ];
+    write OUTFILE;
+    $j++;
+  } 
+close OUTFILE;
+close LIGFILE;          # seems to be very important for closing filehandles,niu
+}
+
+# Zhou yu
+# last version: @<<<<<@>>>> @<<< @>> @ @>>>    @##.###@###.### @##.### @#.## @#.##
+format OUTFILE = 
+@<<<<<@>>>> @<<< @>> @@>>>>   @###.###@###.###@###.### @#.## @#.##
+$tag,$atnum,$atname,$resname,$chn,$resnum,$x,$y,$z,$occ,$temp
+.
